@@ -1,16 +1,30 @@
-# React + Vite
+# Broadcast
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A retro TV-styled streaming experience. Search for any topic and tune into an endless broadcast with CRT effects, channel surfing, and a nostalgic interface.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Search & Tune** — Search any topic to find channels powered by Invidious
+- **Channel Surfing** — Navigate channels with arrow keys or HUD controls
+- **CRT Effects** — Scanlines, vignette, static noise, and glitch transitions
+- **Save Networks** — Bookmark your favorite topics for quick access
+- **Keyboard Shortcuts** — Arrows to change channel, S to search, Space to mute, C to cycle themes
+- **Color Themes** — Default, green phosphor, amber, and black & white CRT modes
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React + Vite
+- Vanilla CSS
+- YouTube IFrame API
+- Invidious API
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+npm run dev
+```
+
+## License
+
+MIT
