@@ -504,11 +504,13 @@ export default function App() {
           origin: currentOrigin,
         },
         events: {
-          onReady() {
+          onReady(e) {
+            playerRef.current = e.target;
             playerRef.current.setVolume(70);
           },
           onStateChange(e) {
             if (!window.YT) return;
+            playerRef.current = e.target;
             if (e.data === window.YT.PlayerState.PLAYING) {
               S.current.failChainCount = 0;
               clearStatusRef.current?.();
@@ -518,7 +520,8 @@ export default function App() {
               switchToRef.current?.(S.current.activeIndex + 1, 'forward');
             }
           },
-          onError() {
+          onError(e) {
+            playerRef.current = e.target;
             handleChannelFailureRef.current?.();
           },
         },
