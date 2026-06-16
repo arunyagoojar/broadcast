@@ -30,52 +30,27 @@ function seededShuffle(arr, seed) {
 }
 
 /* ─────────────────────────────────────────────────────
-   INVIDIOUS SEARCH
+   MOCK DIRECT VIDEO CHANNELS
 ───────────────────────────────────────────────────── */
+const MOCK_CHANNELS = [
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', title: 'CGI: Big Buck Bunny', dur: 596 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', title: 'CGI: Elephants Dream', dur: 653 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', title: 'SciFi: Tears of Steel', dur: 734 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', title: 'Fantasy: Sintel Movie', dur: 888 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', title: 'Promo: Bigger Blazes', dur: 15 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', title: 'Promo: Bigger Escapes', dur: 15 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4', title: 'Promo: Bigger Fun', dur: 15 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', title: 'Promo: Bigger Joyrides', dur: 15 },
+  { id: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', title: 'Promo: Bigger Meltdowns', dur: 15 }
+];
+
 async function searchYouTube(query) {
-  try {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-    if (r.ok) {
-      const data = await r.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-    }
-  } catch (e) {
-    console.error('[TV] Proxy search failed:', e);
-  }
-
-  // Client-side fallback: directly querying known CORS-enabled public Invidious instances
-  console.warn('[TV] Proxy search failed or returned empty. Trying direct client-side fallback...');
-  const fallbackInstances = [
-    'https://iv.melmac.space',
-    'https://inv.thepixora.com',
-  ];
-
-  for (const base of fallbackInstances) {
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 4000);
-      const r = await fetch(
-        `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-        { signal: controller.signal }
-      );
-      clearTimeout(id);
-      if (r.ok) {
-        const json = await r.json();
-        if (Array.isArray(json) && json.length > 0) {
-          return json.map((v) => ({
-            id: v.videoId,
-            title: v.title,
-            dur: v.lengthSeconds || 300,
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn(`[TV] Fallback failed for: ${base}`, e);
-    }
-  }
-  return null;
+  const q = query.toLowerCase().trim();
+  const filtered = MOCK_CHANNELS.filter((c) =>
+    c.title.toLowerCase().includes(q)
+  );
+  if (filtered.length > 0) return filtered;
+  return MOCK_CHANNELS;
 }
 
 
@@ -176,10 +151,10 @@ export default function App() {
   const [glitchBg, setGlitchBg] = useState('');
   const [isPoweredOff, setIsPoweredOff] = useState(false);
   const [history, setHistory] = useState(() =>
-    JSON.parse(localStorage.getItem('ytTV_history') || '[]').slice(0, 5)
+    JSON.parse(localStorage.getItem('tv_history') || '[]').slice(0, 5)
   );
   const [subscriptions, setSubscriptions] = useState(() =>
-    JSON.parse(localStorage.getItem('ytTV_subs') || '[]')
+    JSON.parse(localStorage.getItem('tv_subs') || '[]')
   );
   const [helpVisible, setHelpVisible] = useState(false);
 
@@ -305,16 +280,14 @@ export default function App() {
       // Save current position
       if (
         playerRef.current &&
-        typeof playerRef.current.getCurrentTime === 'function' &&
         s.activeIndex !== null &&
         s.pool[s.activeIndex]
       ) {
         try {
-          const playerState = playerRef.current.getPlayerState?.();
-          if (playerState === 1 || playerState === 2 || playerState === 3) {
+          if (!playerRef.current.paused && !playerRef.current.ended) {
             const currentVideo = s.pool[s.activeIndex];
             s.channelHistory[currentVideo.id] = {
-              savedTime: playerRef.current.getCurrentTime() || 0,
+              savedTime: playerRef.current.currentTime || 0,
               leftAt: Date.now(),
             };
           }
@@ -356,11 +329,10 @@ export default function App() {
       s.activeIndex = index;
       syncLabels();
 
-      if (playerRef.current && playerRef.current.loadVideoById) {
-        playerRef.current.loadVideoById({
-          videoId: item.id,
-          startSeconds: startTime,
-        });
+      if (playerRef.current) {
+        playerRef.current.src = item.id;
+        playerRef.current.currentTime = startTime;
+        playerRef.current.play().catch((err) => console.warn('[TV] Play error:', err));
       }
     },
     [flashGlitch, setStatus, syncLabels]
@@ -411,7 +383,7 @@ export default function App() {
   const saveHistory = useCallback((q) => {
     setHistory((prev) => {
       const updated = [q, ...prev.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 5);
-      localStorage.setItem('ytTV_history', JSON.stringify(updated));
+      localStorage.setItem('tv_history', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -429,8 +401,10 @@ export default function App() {
 
       const s = S.current;
       s.switchToken++;
-      if (playerRef.current && playerRef.current.stopVideo)
-        playerRef.current.stopVideo();
+      if (playerRef.current) {
+        playerRef.current.pause();
+        playerRef.current.src = '';
+      }
 
       s.reqId++;
       const reqId = s.reqId;
@@ -479,79 +453,21 @@ export default function App() {
     [setStatus, showToast, buildSession, saveHistory, switchTo, resetHudIdle]
   );
 
-  /* ── YouTube IFrame API ──
-     Uses a guard ref to prevent double-initialization (React StrictMode),
-     and callback refs so event handlers always call latest functions. */
+  // Set initial volume
   useEffect(() => {
-    if (playerInitRef.current) return;
-
-    const currentOrigin =
-      window.location.protocol === 'file:' ||
-        !window.location.origin ||
-        window.location.origin === 'null'
-        ? 'http://localhost'
-        : window.location.origin;
-
-    function initPlayer() {
-      if (playerInitRef.current) return;
-      playerInitRef.current = true;
-
-      playerRef.current = new window.YT.Player('player', {
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          rel: 0,
-          modestbranding: 1,
-          iv_load_policy: 3,
-          playsinline: 1,
-          enablejsapi: 1,
-          origin: currentOrigin,
-        },
-        events: {
-          onReady(e) {
-            playerRef.current = e.target;
-            playerRef.current.setVolume(70);
-          },
-          onStateChange(e) {
-            if (!window.YT) return;
-            playerRef.current = e.target;
-            if (e.data === window.YT.PlayerState.PLAYING) {
-              S.current.failChainCount = 0;
-              clearStatusRef.current?.();
-            }
-            if (e.data === window.YT.PlayerState.ENDED) {
-              if (S.current.activeIndex == null) return;
-              switchToRef.current?.(S.current.activeIndex + 1, 'forward', true);
-            }
-          },
-          onError(e) {
-            playerRef.current = e.target;
-            handleChannelFailureRef.current?.();
-          },
-        },
-      });
+    if (playerRef.current) {
+      playerRef.current.volume = volume / 100;
     }
-
-    // YT API may already be loaded or we need to wait
-    if (window.YT && window.YT.Player) {
-      initPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = initPlayer;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Volume change handler ── */
   const handleVolumeChange = useCallback((e) => {
     const v = Number(e.target.value);
     setVolume(v);
-    if (playerRef.current?.setVolume) playerRef.current.setVolume(v);
-    if (playerRef.current?.unMute && playerRef.current.isMuted())
-      playerRef.current.unMute();
+    if (playerRef.current) {
+      playerRef.current.volume = v / 100;
+      playerRef.current.muted = false;
+    }
   }, []);
 
   /* ── Open / Close search ── */
@@ -589,7 +505,7 @@ export default function App() {
         updated = [normalized, ...prev];
         showToast('ADDED TO SAVED NETWORKS');
       }
-      localStorage.setItem('ytTV_subs', JSON.stringify(updated));
+      localStorage.setItem('tv_subs', JSON.stringify(updated));
       const isSub = updated.some(
         (x) => x.toLowerCase() === s.query.trim().toLowerCase()
       );
@@ -603,7 +519,7 @@ export default function App() {
     (q) => {
       setSubscriptions((prev) => {
         const updated = prev.filter((x) => x !== q);
-        localStorage.setItem('ytTV_subs', JSON.stringify(updated));
+        localStorage.setItem('tv_subs', JSON.stringify(updated));
         if (S.current.query.toLowerCase() === q.toLowerCase()) {
           const isSub = updated.some(
             (x) => x.toLowerCase() === S.current.query.trim().toLowerCase()
@@ -647,10 +563,12 @@ export default function App() {
     setIsPoweredOff((prev) => {
       const next = !prev;
       if (next) {
-        if (playerRef.current?.pauseVideo) playerRef.current.pauseVideo();
+        if (playerRef.current) playerRef.current.pause();
         if (noiseRef.current) noiseRef.current.stop();
       } else {
-        if (playerRef.current?.playVideo) playerRef.current.playVideo();
+        if (playerRef.current && playerRef.current.src) {
+          playerRef.current.play().catch((err) => console.warn('[TV] Play error on power on:', err));
+        }
         // If status layer is visible, restart noise
         if (document.querySelector('.status-layer.visible')) {
           if (noiseRef.current) noiseRef.current.start();
@@ -677,12 +595,12 @@ export default function App() {
 
       if (e.key === ' ') {
         e.preventDefault();
-        if (playerRef.current?.isMuted) {
-          if (playerRef.current.isMuted()) {
-            playerRef.current.unMute();
-            setVolume(playerRef.current.getVolume());
+        if (playerRef.current) {
+          if (playerRef.current.muted) {
+            playerRef.current.muted = false;
+            setVolume(Math.round(playerRef.current.volume * 100));
           } else {
-            playerRef.current.mute();
+            playerRef.current.muted = true;
             setVolume(0);
           }
         }
@@ -723,7 +641,23 @@ export default function App() {
       <div className="player-stage">
         <div id="player-wrap">
           <div id="player-container">
-            <div id="player"></div>
+            <video
+              id="player"
+              ref={playerRef}
+              playsInline
+              autoPlay
+              onPlay={() => {
+                S.current.failChainCount = 0;
+                clearStatusRef.current?.();
+              }}
+              onEnded={() => {
+                if (S.current.activeIndex == null) return;
+                switchToRef.current?.(S.current.activeIndex + 1, 'forward', true);
+              }}
+              onError={() => {
+                handleChannelFailureRef.current?.();
+              }}
+            />
           </div>
           <div className="player-shield"></div>
         </div>
