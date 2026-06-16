@@ -11,7 +11,7 @@ button, input { font: inherit; }
 /* ── APP SHELL ── */
 .app { position: relative; width: 100vw; height: 100dvh; overflow: hidden; }
 
-/* ── PLAYER & 16:10 CROP MASKING ── */
+/* ── PLAYER & 16:9 VIEWPORT ── */
 .player-stage { 
   position: absolute; 
   inset: 0; 
@@ -22,9 +22,9 @@ button, input { font: inherit; }
 #player-wrap { 
   position: relative; 
   width: 100vw; 
-  height: calc(100vw * (10 / 16)); 
+  height: calc(100vw * (9 / 16)); 
   max-height: 100dvh;
-  max-width: calc(100dvh * (16 / 10));
+  max-width: calc(100dvh * (16 / 9));
   overflow: hidden; 
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
@@ -32,10 +32,10 @@ button, input { font: inherit; }
 
 #player-container {
   position: absolute;
-  top: -11%;
-  left: -11%;
-  width: 122%;
-  height: 122%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 #player { 

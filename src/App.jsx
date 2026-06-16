@@ -295,7 +295,7 @@ export default function App() {
 
   /* ── Switch channel ── */
   const switchTo = useCallback(
-    async (index, dir = 'forward') => {
+    async (index, dir = 'forward', isVideoEnd = false) => {
       const s = S.current;
       if (!s.pool.length) {
         setStatus('NO SIGNAL');
@@ -340,7 +340,9 @@ export default function App() {
       const item = s.pool[index];
 
       let startTime = 0;
-      if (s.channelHistory[item.id]) {
+      if (isVideoEnd) {
+        startTime = 0;
+      } else if (s.channelHistory[item.id]) {
         const hist = s.channelHistory[item.id];
         const elapsedSeconds = (Date.now() - hist.leftAt) / 1000;
         startTime = Math.floor(hist.savedTime + elapsedSeconds);
@@ -485,8 +487,8 @@ export default function App() {
 
     const currentOrigin =
       window.location.protocol === 'file:' ||
-      !window.location.origin ||
-      window.location.origin === 'null'
+        !window.location.origin ||
+        window.location.origin === 'null'
         ? 'http://localhost'
         : window.location.origin;
 
@@ -523,7 +525,7 @@ export default function App() {
             }
             if (e.data === window.YT.PlayerState.ENDED) {
               if (S.current.activeIndex == null) return;
-              switchToRef.current?.(S.current.activeIndex + 1, 'forward');
+              switchToRef.current?.(S.current.activeIndex + 1, 'forward', true);
             }
           },
           onError(e) {
@@ -626,9 +628,9 @@ export default function App() {
   /* ── Fullscreen toggle ── */
   const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen?.().catch(() => {});
+      await document.documentElement.requestFullscreen?.().catch(() => { });
     } else {
-      await document.exitFullscreen?.().catch(() => {});
+      await document.exitFullscreen?.().catch(() => { });
     }
   }, []);
 
