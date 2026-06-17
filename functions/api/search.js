@@ -56,7 +56,7 @@ export async function onRequest(context) {
           });
         }
       }
-    } catch (e) {
+    } catch {
       console.warn(`[Proxy] Failed fetching from ${base}`);
     }
   }

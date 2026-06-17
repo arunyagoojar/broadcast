@@ -56,7 +56,7 @@ function localSearchProxy() {
                   return;
                 }
               }
-            } catch (e) {
+            } catch {
               // Fail silently and try next instance
             }
           }

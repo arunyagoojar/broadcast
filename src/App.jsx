@@ -23,7 +23,7 @@ function seededShuffle(arr, seed) {
   const a = [...arr];
   const r = mulberry32(strHash(seed));
   for (let i = a.length - 1; i > 0; i--) {
-    const j = (r() * i + 1) | 0;
+    const j = Math.floor(r() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -194,6 +194,35 @@ export default function App() {
   const handleChannelFailureRef = useRef(null);
   const clearStatusRef = useRef(null);
 
+  /* ── Screen Wake Lock ── */
+  useEffect(() => {
+    let wakeLock = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch {
+        // Feature unsupported or blocked by battery savings mode
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    requestWakeLock();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (wakeLock) wakeLock.release().catch(() => {});
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   /* ── Toast helper ── */
   const showToast = useCallback((msg, ms = 2600) => {
     setToastMsg(msg);
@@ -272,17 +301,50 @@ export default function App() {
     };
   }, []);
 
+  /* ── Screen Wake Lock ── */
+  useEffect(() => {
+    let wakeLock = null;
+
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.warn('[TV] Wake Lock error:', err);
+        }
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (wakeLock !== null) {
+        wakeLock.release().catch(() => {});
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   /* ── HUD idle listeners ── */
   useEffect(() => {
     const handler = () => resetHudIdle();
     window.addEventListener('mousemove', handler);
     window.addEventListener('mousedown', handler);
     window.addEventListener('keydown', handler);
-    resetHudIdle();
+    const t = setTimeout(resetHudIdle, 0);
     return () => {
       window.removeEventListener('mousemove', handler);
       window.removeEventListener('mousedown', handler);
       window.removeEventListener('keydown', handler);
+      clearTimeout(t);
       clearTimeout(hudTimerRef.current);
     };
   }, [resetHudIdle]);
@@ -297,6 +359,7 @@ export default function App() {
   const switchTo = useCallback(
     async (index, dir = 'forward', isVideoEnd = false) => {
       const s = S.current;
+      void dir;
       if (!s.pool.length) {
         setStatus('NO SIGNAL');
         return;
@@ -340,17 +403,17 @@ export default function App() {
       const item = s.pool[index];
 
       let startTime = 0;
-      if (isVideoEnd) {
-        startTime = 0;
-      } else if (s.channelHistory[item.id]) {
-        const hist = s.channelHistory[item.id];
-        const elapsedSeconds = (Date.now() - hist.leftAt) / 1000;
-        startTime = Math.floor(hist.savedTime + elapsedSeconds);
-        if (item.dur && startTime >= item.dur) {
-          startTime = startTime % item.dur;
+      if (!isVideoEnd) {
+        if (s.channelHistory[item.id]) {
+          const hist = s.channelHistory[item.id];
+          const elapsedSeconds = (Date.now() - hist.leftAt) / 1000;
+          startTime = Math.floor(hist.savedTime + elapsedSeconds);
+          if (item.dur && startTime >= item.dur) {
+            startTime = startTime % item.dur;
+          }
+        } else {
+          startTime = generateRandomOffset(item);
         }
-      } else {
-        startTime = generateRandomOffset(item);
       }
 
       s.activeIndex = index;
@@ -416,6 +479,8 @@ export default function App() {
     });
   }, []);
 
+  const handleSearchRef = useRef(null);
+
   /* ── Handle search ── */
   const handleSearch = useCallback(
     async (q, isRetry = false) => {
@@ -453,7 +518,7 @@ export default function App() {
         if (!pool || pool.length === 0) {
           if (!isRetry) {
             showToast('CONNECTION FAILED - RETRYING...');
-            setTimeout(() => handleSearch(q, true), 1500);
+            setTimeout(() => handleSearchRef.current?.(q, true), 1500);
           } else {
             setStatus('NO SIGNAL');
             showToast('SIGNAL LOST. TRY ANOTHER SEARCH.');
@@ -465,11 +530,11 @@ export default function App() {
         saveHistory(query);
         showToast(`${pool.length} CHANNELS ONLINE`);
         switchTo(0, 'forward');
-      } catch (err) {
+      } catch {
         if (reqId !== s.reqId) return;
         if (!isRetry) {
           showToast('CONNECTION FAILED - RETRYING...');
-          setTimeout(() => handleSearch(q, true), 1500);
+          setTimeout(() => handleSearchRef.current?.(q, true), 1500);
         } else {
           setStatus('NO SIGNAL');
           showToast('TRANS-LINK TIMED OUT');
@@ -478,6 +543,10 @@ export default function App() {
     },
     [setStatus, showToast, buildSession, saveHistory, switchTo, resetHudIdle]
   );
+
+  useEffect(() => {
+    handleSearchRef.current = handleSearch;
+  }, [handleSearch]);
 
   /* ── YouTube IFrame API ──
      Uses a guard ref to prevent double-initialization (React StrictMode),
@@ -542,7 +611,6 @@ export default function App() {
     } else {
       window.onYouTubeIframeAPIReady = initPlayer;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Volume change handler ── */
@@ -869,17 +937,53 @@ export default function App() {
         }}
       >
         <div className="search-panel">
+          <div className="search-header">
+            <span className="search-title">TUNER INDEX</span>
+            <button
+              className="search-close-btn"
+              type="button"
+              onClick={closeSearchFn}
+              aria-label="Close search"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
           <form className="search-row" onSubmit={handleSearchSubmit}>
-            <input
-              ref={searchInputRef}
-              className="search-input"
-              type="text"
-              placeholder="Search a topic..."
-              autoComplete="off"
-              spellCheck="false"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-            />
+            <div className="search-input-wrap">
+              <svg
+                className="search-input-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                className="search-input"
+                type="text"
+                placeholder="Search a topic..."
+                autoComplete="off"
+                spellCheck="false"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+              />
+            </div>
             <button className="search-go" type="submit">
               GO
             </button>
@@ -945,18 +1049,9 @@ export default function App() {
           )}
 
           {/* Help toggle */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-10px' }}>
+          <div className="help-toggle-wrap">
             <button
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.4)',
-                fontSize: '8px',
-                cursor: 'pointer',
-                letterSpacing: '0.1em',
-              }}
-              onMouseOver={(e) => (e.target.style.color = '#fff')}
-              onMouseOut={(e) => (e.target.style.color = 'rgba(255,255,255,0.4)')}
+              className="help-toggle-btn"
               onClick={() => setHelpVisible((v) => !v)}
             >
               HELP (?)
