@@ -1,135 +1,14 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 
-/* ─────────────────────────────────────────────────────
-   UTILITY FUNCTIONS (pure, no React dependency)
-───────────────────────────────────────────────────── */
-function mulberry32(a) {
-  return () => {
-    let t = (a += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function strHash(s) {
-  let h = 1779033703 ^ s.length;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  return (h >>> 0) || 1;
-}
-function seededShuffle(arr, seed) {
-  const a = [...arr];
-  const r = mulberry32(strHash(seed));
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(r() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+import { seededShuffle } from './utils/helpers';
+import { searchYouTube } from './api/youtube';
+import { createNoiseController } from './components/NoiseCanvasController';
+import { useWakeLock } from './hooks/useWakeLock';
+import PlayerStage from './components/PlayerStage';
+import HUD from './components/HUD';
+import SearchModal from './components/SearchModal';
+import Overlays from './components/Overlays';
 
-/* ─────────────────────────────────────────────────────
-   INVIDIOUS SEARCH
-───────────────────────────────────────────────────── */
-async function searchYouTube(query) {
-  try {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-    if (r.ok) {
-      const data = await r.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-    }
-  } catch (e) {
-    console.error('[TV] Proxy search failed:', e);
-  }
-
-  // Client-side fallback: directly querying known CORS-enabled public Invidious instances
-  console.warn('[TV] Proxy search failed or returned empty. Trying direct client-side fallback...');
-  const fallbackInstances = [
-    'https://iv.melmac.space',
-    'https://inv.thepixora.com',
-  ];
-
-  for (const base of fallbackInstances) {
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 4000);
-      const r = await fetch(
-        `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-        { signal: controller.signal }
-      );
-      clearTimeout(id);
-      if (r.ok) {
-        const json = await r.json();
-        if (Array.isArray(json) && json.length > 0) {
-          return json.map((v) => ({
-            id: v.videoId,
-            title: v.title,
-            dur: v.lengthSeconds || 300,
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn(`[TV] Fallback failed for: ${base}`, e);
-    }
-  }
-  return null;
-}
-
-
-/* ─────────────────────────────────────────────────────
-   NOISE CANVAS MODULE (runs outside React lifecycle)
-───────────────────────────────────────────────────── */
-function createNoiseController(canvas) {
-  const ctx = canvas.getContext('2d');
-  let animId = null;
-
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-
-  function drawNoise() {
-    const w = canvas.width, h = canvas.height;
-    const img = ctx.createImageData(w, h);
-    const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const v = (Math.random() * 255) | 0;
-      d[i] = d[i + 1] = d[i + 2] = v;
-      d[i + 3] = 195;
-    }
-    ctx.putImageData(img, 0, 0);
-  }
-
-  function loop() {
-    drawNoise();
-    animId = requestAnimationFrame(loop);
-  }
-
-  return {
-    start() {
-      canvas.classList.remove('hidden');
-      if (!animId) loop();
-    },
-    stop() {
-      canvas.classList.add('hidden');
-      cancelAnimationFrame(animId);
-      animId = null;
-    },
-    init() {
-      window.addEventListener('resize', resize);
-      resize();
-      loop();
-    },
-    destroy() {
-      window.removeEventListener('resize', resize);
-      cancelAnimationFrame(animId);
-      animId = null;
-    },
-  };
-}
 
 /* ─────────────────────────────────────────────────────
    MAIN APP COMPONENT
@@ -175,6 +54,7 @@ export default function App() {
   const [glitchActive, setGlitchActive] = useState(false);
   const [glitchBg, setGlitchBg] = useState('');
   const [isPoweredOff, setIsPoweredOff] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(true);
   const [history, setHistory] = useState(() =>
     JSON.parse(localStorage.getItem('ytTV_history') || '[]').slice(0, 5)
   );
@@ -195,33 +75,7 @@ export default function App() {
   const clearStatusRef = useRef(null);
 
   /* ── Screen Wake Lock ── */
-  useEffect(() => {
-    let wakeLock = null;
-
-    const requestWakeLock = async () => {
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLock = await navigator.wakeLock.request('screen');
-        }
-      } catch {
-        // Feature unsupported or blocked by battery savings mode
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
-    };
-
-    requestWakeLock();
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (wakeLock) wakeLock.release().catch(() => {});
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+  useWakeLock();
 
   /* ── Toast helper ── */
   const showToast = useCallback((msg, ms = 2600) => {
@@ -301,37 +155,7 @@ export default function App() {
     };
   }, []);
 
-  /* ── Screen Wake Lock ── */
-  useEffect(() => {
-    let wakeLock = null;
 
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-        } catch (err) {
-          console.warn('[TV] Wake Lock error:', err);
-        }
-      }
-    };
-
-    requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (wakeLock !== null) {
-        wakeLock.release().catch(() => {});
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
 
   /* ── HUD idle listeners ── */
   useEffect(() => {
@@ -757,6 +581,9 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'c') {
         e.preventDefault();
         cycleTheme();
+      } else if (e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setOverlayEnabled((prev) => !prev);
       } else if (e.key === '/' || e.key.toLowerCase() === 's') {
         e.preventDefault();
         openSearchFn(s.query);
@@ -787,340 +614,53 @@ export default function App() {
   /* ── JSX ── */
   return (
     <div className={`app${isPoweredOff ? ' power-off' : ''}`}>
-      {/* Player Stage */}
-      <div className="player-stage">
-        <div id="player-wrap">
-          <div id="player-container">
-            <div id="player"></div>
-          </div>
-          <div className="player-shield"></div>
-        </div>
-      </div>
+      <PlayerStage />
 
-      {/* Noise Canvas */}
-      <canvas ref={canvasRef} className="noise-canvas" />
+      <Overlays
+        canvasRef={canvasRef}
+        overlayEnabled={overlayEnabled}
+        glitchRef={glitchRef}
+        glitchActive={glitchActive}
+        glitchBg={glitchBg}
+        statusVisible={statusVisible}
+        statusText={statusText}
+        networkActive={networkActive}
+        networkFadeOut={networkFadeOut}
+        networkName={networkName}
+        isSubscribed={isSubscribed}
+        toggleSubscription={toggleSubscription}
+        toastShow={toastShow}
+        toastMsg={toastMsg}
+        togglePower={togglePower}
+      />
 
-      {/* Overlay layers */}
-      <div className="scanlines"></div>
-      <div className="vignette"></div>
-      <div
-        ref={glitchRef}
-        className={`glitch${glitchActive ? ' active' : ''}`}
-        style={{ background: glitchBg }}
-      ></div>
+      <HUD
+        hudFadeOut={hudFadeOut}
+        volume={volume}
+        channelLabel={channelLabel}
+        openSearchFn={openSearchFn}
+        handleVolumeChange={handleVolumeChange}
+        switchTo={switchTo}
+        toggleFullscreen={toggleFullscreen}
+        query={S.current.query}
+        activeIndex={S.current.activeIndex}
+      />
 
-      {/* Status */}
-      <div className={`status-layer${statusVisible ? ' visible' : ''}`}>
-        <span className="status-label">{statusText}</span>
-      </div>
-
-      {/* Network Overlay */}
-      <div
-        className={`network-overlay${networkActive ? ' active' : ''}${networkFadeOut ? ' fade-out' : ''}`}
-      >
-        <div className="network-name">{networkName}</div>
-        <button
-          className={`network-btn${isSubscribed ? ' subscribed' : ''}`}
-          onClick={toggleSubscription}
-        >
-          {isSubscribed ? '✓ SAVED' : '+ SAVE NETWORK'}
-        </button>
-      </div>
-
-      {/* HUD Pill */}
-      <div className={`hud${hudFadeOut ? ' fade-out' : ''}`}>
-        <button
-          className="hud-btn"
-          aria-label="Search"
-          onClick={() => openSearchFn(S.current.query)}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </button>
-
-        <div className="vol-wrap" title="Volume">
-          <div className="vol-track">
-            <div className="vol-fill" style={{ width: `${volume}%` }}></div>
-            <div className="vol-thumb" style={{ left: `${volume}%` }}></div>
-            <input
-              type="range"
-              className="vol-input"
-              min="0"
-              max="100"
-              value={volume}
-              onChange={handleVolumeChange}
-              aria-label="Volume"
-            />
-          </div>
-        </div>
-
-        <div className="hud-spacer"></div>
-        <span className="hud-ch">{channelLabel}</span>
-        <div className="hud-spacer"></div>
-
-        <div className="nav-arrows">
-          <button
-            className="hud-btn"
-            aria-label="Previous channel"
-            onClick={() => {
-              if (!S.current.query) return openSearchFn();
-              switchTo((S.current.activeIndex ?? 0) - 1, 'back');
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <button
-            className="hud-btn"
-            aria-label="Next channel"
-            onClick={() => {
-              if (!S.current.query) return openSearchFn();
-              switchTo((S.current.activeIndex ?? -1) + 1, 'forward');
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        </div>
-
-        <button
-          className="hud-btn"
-          aria-label="Fullscreen"
-          onClick={toggleFullscreen}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="15 3 21 3 21 9" />
-            <polyline points="9 21 3 21 3 15" />
-            <line x1="21" y1="3" x2="14" y2="10" />
-            <line x1="3" y1="21" x2="10" y2="14" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Search Modal */}
-      <div
-        className={`search-modal${searchOpen ? ' open' : ''}`}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) closeSearchFn();
-        }}
-      >
-        <div className="search-panel">
-          <div className="search-header">
-            <span className="search-title">TUNER INDEX</span>
-            <button
-              className="search-close-btn"
-              type="button"
-              onClick={closeSearchFn}
-              aria-label="Close search"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          <form className="search-row" onSubmit={handleSearchSubmit}>
-            <div className="search-input-wrap">
-              <svg
-                className="search-input-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                ref={searchInputRef}
-                className="search-input"
-                type="text"
-                placeholder="Search a topic..."
-                autoComplete="off"
-                spellCheck="false"
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
-            </div>
-            <button className="search-go" type="submit">
-              GO
-            </button>
-          </form>
-
-          {/* History */}
-          {history.length > 0 && (
-            <div>
-              <div className="section-label">RECENT</div>
-              <div className="history-row">
-                {history.map((q, i) => (
-                  <button
-                    key={`hist-${i}`}
-                    className="history-btn"
-                    type="button"
-                    onClick={() => handleSearch(q)}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Divider */}
-          {hasBothSections && <hr className="search-divider" />}
-
-          {/* Subscriptions */}
-          {subscriptions.length > 0 && (
-            <div>
-              <div className="section-label">SAVED NETWORKS</div>
-              <div className="subs-row">
-                {subscriptions.map((q, i) => (
-                  <div
-                    key={`sub-${i}`}
-                    className="sub-item"
-                    onClick={() => handleSearch(q)}
-                  >
-                    <span
-                      className="sub-name"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSearch(q);
-                      }}
-                    >
-                      {q.toUpperCase()}
-                    </span>
-                    <button
-                      className="sub-del-btn"
-                      type="button"
-                      title="Delete network"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteSubscription(q);
-                      }}
-                    >
-                      &#x2715;
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Help toggle */}
-          <div className="help-toggle-wrap">
-            <button
-              className="help-toggle-btn"
-              onClick={() => setHelpVisible((v) => !v)}
-            >
-              HELP (?)
-            </button>
-          </div>
-
-          {/* Help section */}
-          {helpVisible && (
-            <div
-              className="help-section"
-              style={{
-                borderTop: '1px solid rgba(255,255,255,0.12)',
-                paddingTop: '14px',
-              }}
-            >
-              <div className="section-label">ABOUT & CONTROLS</div>
-              <p className="help-text">
-                Welcome to Broadcast. Search for any topic to tune into an endless
-                retro broadcast. Save your favorite networks.
-              </p>
-              <div className="help-shortcuts">
-                <span>
-                  <b>Arrows:</b> Change CH
-                </span>
-                <span>
-                  <b>1-9:</b> Quick Tune
-                </span>
-                <span>
-                  <b>S or /:</b> Search
-                </span>
-                <span>
-                  <b>Space:</b> Mute/Unmute
-                </span>
-                <span>
-                  <b>C:</b> Cycle Theme
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Toast */}
-      <div className={`toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
-
-      {/* Landscape enforcer */}
-      <div className="landscape-enforcer">
-        PLEASE ROTATE DEVICE TO LANDSCAPE
-        <br />
-        <br />
-        TO VIEW TRANSMISSION
-      </div>
-
-      {/* Power button */}
-      <div className="power-btn-wrap">
-        <button className="power-btn" aria-label="Power" onClick={togglePower}>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-            <line x1="12" y1="2" x2="12" y2="12"></line>
-          </svg>
-        </button>
-      </div>
+      <SearchModal
+        searchOpen={searchOpen}
+        closeSearchFn={closeSearchFn}
+        searchInputRef={searchInputRef}
+        searchValue={searchValue}
+        setSearchValue={setSearchValue}
+        handleSearchSubmit={handleSearchSubmit}
+        history={history}
+        handleSearch={handleSearch}
+        subscriptions={subscriptions}
+        deleteSubscription={deleteSubscription}
+        helpVisible={helpVisible}
+        setHelpVisible={setHelpVisible}
+        hasBothSections={hasBothSections}
+      />
     </div>
   );
 }
