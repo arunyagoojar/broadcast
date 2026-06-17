@@ -56,8 +56,8 @@ function localSearchProxy() {
                   return;
                 }
               }
-            } catch {
-              // Fail silently and try next instance
+            } catch (err) {
+              void err; // Fail silently and try next instance
             }
           }
 
