@@ -11,18 +11,23 @@ export default function SearchModal({
   deleteSubscription,
   helpVisible,
   setHelpVisible,
+  openSettingsFn,
   hasBothSections,
+  onboarding,
 }) {
   return (
     <div
       className={`search-modal${searchOpen ? ' open' : ''}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tuner index"
       onClick={(e) => {
         if (e.target === e.currentTarget) closeSearchFn();
       }}
     >
       <div className="search-panel">
         <div className="search-header">
-          <span className="search-title">TUNER INDEX</span>
+          <span className="search-title">{onboarding ? 'FIRST TUNE' : 'TUNER INDEX'}</span>
           <button
             className="search-close-btn"
             type="button"
@@ -42,6 +47,12 @@ export default function SearchModal({
             </svg>
           </button>
         </div>
+
+        {onboarding && (
+          <p className="onboarding-text">
+            Search a show, movie, topic, or vibe to start your first broadcast.
+          </p>
+        )}
 
         <form className="search-row" onSubmit={handleSearchSubmit}>
           <div className="search-input-wrap">
@@ -100,20 +111,28 @@ export default function SearchModal({
           <div>
             <div className="section-label">SAVED NETWORKS</div>
             <div className="subs-row">
-              {subscriptions.map((q, i) => (
+              {subscriptions.map((network, i) => (
                 <div
                   key={`sub-${i}`}
                   className="sub-item"
-                  onClick={() => handleSearch(q)}
+                  role="button"
+                  tabIndex="0"
+                  onClick={() => handleSearch(network.query, false, network.seed)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSearch(network.query, false, network.seed);
+                    }
+                  }}
                 >
                   <span
                     className="sub-name"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSearch(q);
+                      handleSearch(network.query, false, network.seed);
                     }}
                   >
-                    {q.toUpperCase()}
+                    {network.query.toUpperCase()}
                   </span>
                   <button
                     className="sub-del-btn"
@@ -121,7 +140,7 @@ export default function SearchModal({
                     title="Delete network"
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteSubscription(q);
+                      deleteSubscription(network);
                     }}
                   >
                     &#x2715;
@@ -132,10 +151,17 @@ export default function SearchModal({
           </div>
         )}
 
-        {/* Help toggle */}
-        <div className="help-toggle-wrap">
+        <div className="panel-toggle-wrap">
           <button
             className="help-toggle-btn"
+            type="button"
+            onClick={openSettingsFn}
+          >
+            SETTINGS
+          </button>
+          <button
+            className="help-toggle-btn"
+            type="button"
             onClick={() => setHelpVisible((v) => !v)}
           >
             HELP (?)
@@ -174,6 +200,9 @@ export default function SearchModal({
               </span>
               <span>
                 <b>O:</b> Toggle Overlay
+              </span>
+              <span>
+                <b>P:</b> Power
               </span>
             </div>
           </div>

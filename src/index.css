@@ -68,6 +68,23 @@ input {
   pointer-events: none;
 }
 
+@media (max-width: 900px) {
+  .app.edge-video #player-wrap {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+  }
+
+  .app.edge-video #player-container {
+    top: 50%;
+    left: 50%;
+    width: max(100vw, calc(100dvh * (16 / 9)));
+    height: max(100dvh, calc(100vw * (9 / 16)));
+    transform: translate(-50%, -50%);
+  }
+}
+
 .player-shield {
   position: absolute;
   inset: 0;
@@ -84,7 +101,8 @@ input {
   height: 100%;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.82;
+  opacity: 1;
+  background: #000;
 }
 
 .noise-canvas.hidden {
@@ -156,8 +174,8 @@ input {
 /* ── TOP LEFT NETWORK OVERLAY ── */
 .network-overlay {
   position: absolute;
-  top: 50px;
-  left: 100px;
+  top: clamp(14px, 6vh, 50px);
+  left: clamp(14px, 8vw, 100px);
   z-index: 9;
   display: flex;
   flex-direction: column;
@@ -329,10 +347,10 @@ input {
 }
 
 /* ── SEARCH MODAL ── */
-.search-modal {
+.search-modal,
+.settings-modal {
   position: absolute;
   inset: 0;
-  z-index: 12;
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.45);
@@ -342,13 +360,25 @@ input {
   transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1), visibility 400ms;
 }
 
-.search-modal.open {
+.search-modal {
+  z-index: 12;
+}
+
+.settings-modal {
+  z-index: 14;
+}
+
+.search-modal.open,
+.settings-modal.open {
   visibility: visible;
   opacity: 1;
 }
 
-.search-panel {
+.search-panel,
+.settings-panel {
   width: min(90vw, 520px);
+  max-height: min(86dvh, 720px);
+  overflow-y: auto;
   display: grid;
   gap: 20px;
   padding: 24px 28px;
@@ -362,7 +392,21 @@ input {
   transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1), transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.search-modal.open .search-panel {
+.settings-panel {
+  width: min(90vw, 460px);
+  gap: 18px;
+  transform: translateY(22px) scale(0.94);
+}
+
+.onboarding-text {
+  color: rgba(255, 255, 255, 0.62);
+  font-family: sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.search-modal.open .search-panel,
+.settings-modal.open .settings-panel {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
@@ -706,9 +750,11 @@ input {
   }
 }
 
+.panel-toggle-wrap,
 .help-toggle-wrap {
   display: flex;
   justify-content: flex-end;
+  gap: 16px;
   margin-top: -10px;
 }
 
@@ -724,6 +770,55 @@ input {
 }
 
 .help-toggle-btn:hover {
+  color: #fff;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setting-row {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 7.5px;
+}
+
+.setting-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #fff;
+}
+
+.theme-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.theme-chip {
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 7px;
+  cursor: pointer;
+}
+
+.theme-chip.active,
+.theme-chip:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
@@ -743,10 +838,25 @@ input {
     display: none;
   }
 
-  .search-panel {
+  .search-panel,
+  .settings-panel {
     border-radius: 20px;
     padding: 18px 20px;
     gap: 16px;
+  }
+
+  .search-row,
+  .settings-grid,
+  .theme-row {
+    grid-template-columns: 1fr;
+  }
+
+  .search-row {
+    display: grid;
+  }
+
+  .network-name {
+    font-size: 13px;
   }
 }
 
@@ -851,14 +961,14 @@ input {
 }
 
 /* ── CRT COLOR THEMES ── */
-body.theme-green {
+.app.theme-green #player-wrap {
   filter: sepia(0.8) hue-rotate(70deg) saturate(2) contrast(1.1);
 }
 
-body.theme-amber {
+.app.theme-amber #player-wrap {
   filter: sepia(0.8) hue-rotate(10deg) saturate(2.5) contrast(1.1);
 }
 
-body.theme-bw {
+.app.theme-bw #player-wrap {
   filter: grayscale(1) contrast(1.3);
 }

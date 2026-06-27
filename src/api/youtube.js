@@ -1,11 +1,24 @@
-export async function searchYouTube(query) {
+import {
+  buildFocusedSearchQuery,
+  filterFocusedResults,
+  normalizeInvidiousResults,
+} from './searchShared';
+import { fetchInvidiousResults } from './searchBackend';
+
+export async function searchYouTube(query, options = {}) {
+  const focused = options.focused ?? true;
+  const searchQuery = buildFocusedSearchQuery(query, focused);
+
   try {
-    const r = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const r = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
     if (r.ok) {
       const data = await r.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
+      const results = filterFocusedResults(
+        query,
+        normalizeInvidiousResults(data),
+        focused
+      );
+      if (results.length > 0) return results;
     }
   } catch (e) {
     console.error('[TV] Proxy search failed:', e);
@@ -13,33 +26,12 @@ export async function searchYouTube(query) {
 
   // Client-side fallback: directly querying known CORS-enabled public Invidious instances
   console.warn('[TV] Proxy search failed or returned empty. Trying direct client-side fallback...');
-  const fallbackInstances = [
-    'https://iv.melmac.space',
-    'https://inv.thepixora.com',
-  ];
+  const fallbackResults = filterFocusedResults(
+    query,
+    await fetchInvidiousResults(searchQuery, { logger: console }),
+    focused
+  );
+  if (fallbackResults.length > 0) return fallbackResults;
 
-  for (const base of fallbackInstances) {
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 4000);
-      const r = await fetch(
-        `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-        { signal: controller.signal }
-      );
-      clearTimeout(id);
-      if (r.ok) {
-        const json = await r.json();
-        if (Array.isArray(json) && json.length > 0) {
-          return json.map((v) => ({
-            id: v.videoId,
-            title: v.title,
-            dur: v.lengthSeconds || 300,
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn(`[TV] Fallback failed for: ${base}`, e);
-    }
-  }
   return null;
 }

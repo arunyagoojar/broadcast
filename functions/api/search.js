@@ -1,3 +1,5 @@
+import { fetchInvidiousResults } from '../../src/api/searchBackend.js';
+
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
@@ -13,53 +15,19 @@ export async function onRequest(context) {
     });
   }
 
-  // Curated list of public Invidious instances
-  const instances = [
-    'https://iv.melmac.space',
-    'https://inv.thepixora.com',
-    'https://inv.tux.it',
-    'https://invidious.perennialte.ch',
-    'https://invidious.slipfox.xyz',
-    'https://invidious.asir.dev',
-    'https://yewtu.be',
-  ];
+  const results = await fetchInvidiousResults(query, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+  });
 
-  for (const base of instances) {
-    try {
-      const targetUrl = `${base}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 4000);
-      
-      const response = await fetch(targetUrl, {
-        signal: controller.signal,
-        headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' 
-        }
-      });
-      clearTimeout(id);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          // Format results to matching client expectations
-          const formatted = data.map((v) => ({
-            id: v.videoId,
-            title: v.title,
-            dur: v.lengthSeconds || 300,
-          }));
-
-          return new Response(JSON.stringify(formatted), {
-            headers: {
-              'content-type': 'application/json',
-              'access-control-allow-origin': '*',
-            },
-          });
-        }
-      }
-    } catch (err) {
-      void err;
-      console.warn(`[Proxy] Failed fetching from ${base}`);
-    }
+  if (results.length > 0) {
+    return new Response(JSON.stringify(results), {
+      headers: {
+        'content-type': 'application/json',
+        'access-control-allow-origin': '*',
+      },
+    });
   }
 
   return new Response(JSON.stringify({ error: 'All instances failed' }), {
