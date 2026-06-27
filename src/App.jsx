@@ -155,6 +155,7 @@ export default function App() {
   const fxEnabledRef = useRef(fxEnabled);
   const advanceChannelRef = useRef(null);
   const clearStatusRef = useRef(null);
+  const wasMutedRef = useRef(false);
 
   useWakeLock();
 
@@ -873,8 +874,15 @@ export default function App() {
       if (next) {
         syncActiveChannelClock();
         noiseRef.current?.stop();
+        if (playerRef.current) {
+          wasMutedRef.current = playerRef.current.isMuted?.();
+          playerRef.current.mute?.();
+        }
       } else {
         retuneActiveChannel(true);
+        if (playerRef.current && !wasMutedRef.current) {
+          playerRef.current.unMute?.();
+        }
       }
       return next;
     });
