@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fetchInvidiousResults } from './src/api/searchBackend.js'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // Custom local proxy middleware that matches the Cloudflare Pages Function logic
 function localSearchProxy() {
   return {
@@ -46,5 +48,5 @@ function localSearchProxy() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), localSearchProxy()],
+  plugins: [react(), localSearchProxy(), cloudflare()],
 })
