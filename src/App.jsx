@@ -579,10 +579,10 @@ export default function App() {
     ]
   );
 
-  const retuneActiveChannel = useCallback(async () => {
+  const retuneActiveChannel = useCallback(async (force = false) => {
     const s = S.current;
     const index = s.activeIndex;
-    if (poweredOffRef.current || index == null || !s.channels[index]) return;
+    if ((!force && poweredOffRef.current) || index == null || !s.channels[index]) return;
 
     s.switchToken += 1;
     const token = s.switchToken;
@@ -871,15 +871,14 @@ export default function App() {
     setIsPoweredOff((prev) => {
       const next = !prev;
       if (next) {
-        playerRef.current?.pauseVideo?.();
+        syncActiveChannelClock();
         noiseRef.current?.stop();
       } else {
-        playerRef.current?.playVideo?.();
-        if (document.querySelector('.status-layer.visible')) noiseRef.current?.start();
+        retuneActiveChannel(true);
       }
       return next;
     });
-  }, []);
+  }, [retuneActiveChannel, syncActiveChannelClock]);
 
   const goRelative = useCallback(
     (delta) => {
