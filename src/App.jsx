@@ -222,11 +222,9 @@ export default function App() {
     setCurrentQuery(query || '');
     setActiveIndexState(s.activeIndex);
     setNetworkName(
-      channel
-        ? `${channel.query.toUpperCase()} / ${String(channel.slot + 1).padStart(2, '0')}`
-        : query
-          ? query.toUpperCase()
-          : '-'
+      query
+        ? query.toUpperCase()
+        : '-'
     );
     setNetworkActive(Boolean(query));
     setIsSubscribed(
