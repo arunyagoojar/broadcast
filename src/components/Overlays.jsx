@@ -1,19 +1,15 @@
 export default function Overlays({
   canvasRef,
   overlayEnabled,
+  vignetteEnabled,
   glitchRef,
   glitchActive,
   glitchBg,
   statusVisible,
   statusText,
-  networkActive,
-  networkFadeOut,
-  networkName,
-  isSubscribed,
-  toggleSubscription,
   toastShow,
   toastMsg,
-  togglePower,
+  toggleFullscreen,
 }) {
   return (
     <>
@@ -21,12 +17,8 @@ export default function Overlays({
       <canvas ref={canvasRef} className="noise-canvas" />
 
       {/* Overlay layers */}
-      {overlayEnabled && (
-        <>
-          <div className="scanlines"></div>
-          <div className="vignette"></div>
-        </>
-      )}
+      {overlayEnabled && <div className="scanlines"></div>}
+      {vignetteEnabled && <div className="vignette"></div>}
       <div
         ref={glitchRef}
         className={`glitch${glitchActive ? ' active' : ''}`}
@@ -38,45 +30,50 @@ export default function Overlays({
         <span className="status-label">{statusText}</span>
       </div>
 
-      {/* Network Overlay */}
-      <div
-        className={`network-overlay${networkActive ? ' active' : ''}${networkFadeOut ? ' fade-out' : ''}`}
-      >
-        <div className="network-name">{networkName}</div>
-        <button
-          className={`network-btn${isSubscribed ? ' subscribed' : ''}`}
-          onClick={toggleSubscription}
-        >
-          {isSubscribed ? '✓ SAVED' : '+ SAVE NETWORK'}
-        </button>
-      </div>
-
       {/* Toast */}
       <div className={`toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
 
-      {/* Landscape enforcer */}
+      {/* Landscape / fullscreen prompt (mobile portrait) */}
       <div className="landscape-enforcer">
-        PLEASE ROTATE DEVICE TO LANDSCAPE
-        <br />
-        <br />
-        TO VIEW TRANSMISSION
-      </div>
-
-      {/* Power button */}
-      <div className="power-btn-wrap">
-        <button className="power-btn" aria-label="Power" onClick={togglePower}>
+        <div className="landscape-card">
           <svg
+            className="landscape-icon"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.5"
+            strokeWidth="1.6"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-            <line x1="12" y1="2" x2="12" y2="12"></line>
+            <rect x="2" y="7" width="20" height="10" rx="2" />
+            <path d="M17 3.5 20.5 7 17 10.5" />
           </svg>
-        </button>
+          <div className="landscape-title">ROTATE YOUR DEVICE</div>
+          <p className="landscape-text">
+            Turn your phone to landscape, then tap the button below to go
+            fullscreen for the full broadcast.
+          </p>
+          <button
+            className="landscape-btn"
+            type="button"
+            onClick={toggleFullscreen}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 3 21 3 21 9" />
+              <polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+            GO FULLSCREEN
+          </button>
+        </div>
       </div>
     </>
   );

@@ -4,12 +4,14 @@ import { seededShuffle } from './utils/helpers';
 import { readJson, writeJson } from './utils/storage';
 import { searchYouTube } from './api/youtube';
 import { createNoiseController } from './components/NoiseCanvasController';
+import { playMenuOpen, playMenuClose, playClick } from './utils/sounds';
 import { useWakeLock } from './hooks/useWakeLock';
 import PlayerStage from './components/PlayerStage';
 import HUD from './components/HUD';
 import SearchModal from './components/SearchModal';
 import SettingsModal from './components/SettingsModal';
 import Overlays from './components/Overlays';
+import LeftMenu from './components/LeftMenu';
 
 const CHANNEL_COUNT = 10;
 const HISTORY_KEY = 'ytTV_history';
@@ -81,8 +83,8 @@ function getInitialData() {
     subscriptions,
     settings: {
       overlayEnabled: settings.overlayEnabled ?? true,
-      fxEnabled: settings.fxEnabled ?? true,
-      edgeVideo: settings.edgeVideo ?? false,
+      vignetteEnabled: settings.vignetteEnabled ?? true,
+      aspectRatio: settings.aspectRatio ?? '16-9',
       themeIndex: settings.themeIndex ?? 0,
     },
   };
@@ -121,19 +123,17 @@ export default function App() {
   const shouldShowOnboarding =
     initialData.history.length === 0 && initialData.subscriptions.length === 0;
 
-  const [statusText, setStatusText] = useState('TUNE A NETWORK');
+  const [statusText, setStatusText] = useState('TUNE A CHANNEL');
   const [statusVisible, setStatusVisible] = useState(!shouldShowOnboarding);
   const [hudFadeOut, setHudFadeOut] = useState(false);
-  const [networkFadeOut, setNetworkFadeOut] = useState(false);
-  const [networkActive, setNetworkActive] = useState(false);
   const [networkName, setNetworkName] = useState('-');
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(shouldShowOnboarding);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [currentQuery, setCurrentQuery] = useState('');
   const [activeIndexState, setActiveIndexState] = useState(null);
   const [searchValue, setSearchValue] = useState('');
   const [channelLabel, setChannelLabel] = useState('CH 00');
-  const [volume, setVolume] = useState(70);
+  const [volume, setVolume] = useState(100);
   const [toastMsg, setToastMsg] = useState('');
   const [toastShow, setToastShow] = useState(false);
   const [glitchActive, setGlitchActive] = useState(false);
@@ -142,9 +142,12 @@ export default function App() {
   const [overlayEnabled, setOverlayEnabled] = useState(
     initialData.settings.overlayEnabled
   );
-  const [fxEnabled, setFxEnabled] = useState(initialData.settings.fxEnabled);
-  const [edgeVideo, setEdgeVideo] = useState(initialData.settings.edgeVideo);
+  const [vignetteEnabled, setVignetteEnabled] = useState(
+    initialData.settings.vignetteEnabled
+  );
+  const [aspectRatio, setAspectRatio] = useState(initialData.settings.aspectRatio);
   const [themeIndex, setThemeIndex] = useState(initialData.settings.themeIndex);
+  const [leftMenuOpen, setLeftMenuOpen] = useState(shouldShowOnboarding);
   const [history, setHistory] = useState(initialData.history);
   const [subscriptions, setSubscriptions] = useState(initialData.subscriptions);
   const [helpVisible, setHelpVisible] = useState(false);
@@ -152,7 +155,6 @@ export default function App() {
 
   const subsRef = useRef(subscriptions);
   const poweredOffRef = useRef(isPoweredOff);
-  const fxEnabledRef = useRef(fxEnabled);
   const advanceChannelRef = useRef(null);
   const clearStatusRef = useRef(null);
   const wasMutedRef = useRef(false);
@@ -168,17 +170,19 @@ export default function App() {
   }, [isPoweredOff]);
 
   useEffect(() => {
-    fxEnabledRef.current = fxEnabled;
-  }, [fxEnabled]);
-
-  useEffect(() => {
     writeJson(SETTINGS_KEY, {
       overlayEnabled,
-      fxEnabled,
-      edgeVideo,
+      vignetteEnabled,
+      aspectRatio,
       themeIndex,
     });
-  }, [overlayEnabled, fxEnabled, edgeVideo, themeIndex]);
+  }, [overlayEnabled, vignetteEnabled, aspectRatio, themeIndex]);
+
+  useEffect(() => {
+    const arClasses = ['ar-16-9', 'ar-4-3', 'ar-21-9', 'ar-full'];
+    document.body.classList.remove(...arClasses);
+    if (aspectRatio) document.body.classList.add(`ar-${aspectRatio}`);
+  }, [aspectRatio]);
 
   const showToast = useCallback((msg, ms = 2600) => {
     setToastMsg(msg);
@@ -227,7 +231,6 @@ export default function App() {
         ? query.toUpperCase()
         : '-'
     );
-    setNetworkActive(Boolean(query));
     setIsSubscribed(
       Boolean(
         query &&
@@ -246,8 +249,6 @@ export default function App() {
   }, []);
 
   const playStaticClick = useCallback(() => {
-    if (!fxEnabledRef.current) return;
-
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
@@ -281,12 +282,15 @@ export default function App() {
 
   const resetHudIdle = useCallback(() => {
     setHudFadeOut(false);
-    setNetworkFadeOut(false);
     clearTimeout(hudTimerRef.current);
-    if (document.querySelector('.search-modal.open')) return;
+    if (
+      document.querySelector('.search-modal.open') ||
+      document.querySelector('.left-menu-container.open')
+    ) {
+      return;
+    }
     hudTimerRef.current = setTimeout(() => {
       setHudFadeOut(true);
-      setNetworkFadeOut(true);
     }, 3000);
   }, []);
 
@@ -307,11 +311,13 @@ export default function App() {
     const handler = () => resetHudIdle();
     window.addEventListener('mousemove', handler);
     window.addEventListener('mousedown', handler);
+    window.addEventListener('touchstart', handler);
     window.addEventListener('keydown', handler);
     const t = setTimeout(resetHudIdle, 0);
     return () => {
       window.removeEventListener('mousemove', handler);
       window.removeEventListener('mousedown', handler);
+      window.removeEventListener('touchstart', handler);
       window.removeEventListener('keydown', handler);
       clearTimeout(t);
       clearTimeout(hudTimerRef.current);
@@ -728,6 +734,7 @@ export default function App() {
           rel: 0,
           modestbranding: 1,
           iv_load_policy: 3,
+          cc_load_policy: 0,
           playsinline: 1,
           enablejsapi: 1,
           origin: currentOrigin,
@@ -737,6 +744,12 @@ export default function App() {
             playerRef.current = e.target;
             playerReadyRef.current = true;
             playerRef.current.setVolume(volume);
+            try {
+              playerRef.current.unloadModule('captions');
+              playerRef.current.unloadModule('cc');
+            } catch (err) {
+              void err;
+            }
             if (pendingLoadRef.current) {
               playerRef.current.loadVideoById(pendingLoadRef.current);
               pendingLoadRef.current = null;
@@ -747,6 +760,12 @@ export default function App() {
             playerRef.current = e.target;
             if (e.data === window.YT.PlayerState.PLAYING) {
               S.current.failChainCount = 0;
+              try {
+                playerRef.current.unloadModule('captions');
+                playerRef.current.unloadModule('cc');
+              } catch (err) {
+                void err;
+              }
               const channel =
                 S.current.activeIndex == null
                   ? null
@@ -789,7 +808,6 @@ export default function App() {
     (q = '') => {
       setSearchOpen(true);
       setHudFadeOut(false);
-      setNetworkFadeOut(false);
       clearTimeout(hudTimerRef.current);
       if (q) setSearchValue(q);
       setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -803,28 +821,54 @@ export default function App() {
   }, [resetHudIdle]);
 
   const openSettingsFn = useCallback(() => {
+    playMenuOpen();
+    setLeftMenuOpen(false);
     setSettingsVisible(true);
   }, []);
 
   const closeSettingsFn = useCallback(() => {
+    playMenuClose();
     setSettingsVisible(false);
-  }, []);
+    resetHudIdle();
+  }, [resetHudIdle]);
+
+  const toggleLeftMenu = useCallback(() => {
+    setLeftMenuOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        playMenuOpen();
+        setHudFadeOut(false);
+        clearTimeout(hudTimerRef.current);
+      } else {
+        playMenuClose();
+        resetHudIdle();
+      }
+      return next;
+    });
+  }, [resetHudIdle]);
+
+  const closeLeftMenu = useCallback(() => {
+    playMenuClose();
+    setLeftMenuOpen(false);
+    resetHudIdle();
+  }, [resetHudIdle]);
 
   const toggleSubscription = useCallback(() => {
     const s = S.current;
     const query = cleanQuery(s.query);
     if (!query) return;
 
+    playClick();
     setSubscriptions((prev) => {
       const idx = prev.findIndex((x) => queryKey(x.query) === queryKey(query));
       let updated;
 
       if (idx > -1) {
         updated = prev.filter((_, i) => i !== idx);
-        showToast('REMOVED FROM SAVED NETWORKS');
+        showToast('CHANNEL REMOVED');
       } else {
         updated = [{ query, seed: s.sessionSeed || makeSeed(query) }, ...prev];
-        showToast('ADDED TO SAVED NETWORKS');
+        showToast('CHANNEL SAVED');
       }
 
       writeJson(SUBS_KEY, updated);
@@ -853,6 +897,7 @@ export default function App() {
   );
 
   const toggleFullscreen = useCallback(async () => {
+    playClick();
     if (!document.fullscreenElement) {
       await document.documentElement.requestFullscreen?.().catch(() => {});
     } else {
@@ -865,6 +910,7 @@ export default function App() {
   }, []);
 
   const setTheme = useCallback((idx) => {
+    playClick();
     setThemeIndex(idx % THEMES.length);
   }, []);
 
@@ -902,6 +948,17 @@ export default function App() {
       if (searchOpen) {
         if (e.key === 'Escape') closeSearchFn();
         return;
+      }
+
+      if (e.key === 'Escape') {
+        if (settingsVisible) {
+          closeSettingsFn();
+          return;
+        }
+        if (leftMenuOpen) {
+          closeLeftMenu();
+          return;
+        }
       }
 
       const activeTag = document.activeElement?.tagName;
@@ -955,7 +1012,11 @@ export default function App() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [
     searchOpen,
+    settingsVisible,
+    leftMenuOpen,
     closeSearchFn,
+    closeSettingsFn,
+    closeLeftMenu,
     cycleTheme,
     goRelative,
     openSearchFn,
@@ -993,7 +1054,7 @@ export default function App() {
 
   return (
     <div
-      className={`app${isPoweredOff ? ' power-off' : ''}${edgeVideo ? ' edge-video' : ''}${THEMES[themeIndex] ? ` ${THEMES[themeIndex]}` : ''}`}
+      className={`app${isPoweredOff ? ' power-off' : ''}${THEMES[themeIndex] ? ` ${THEMES[themeIndex]}` : ''}`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -1002,31 +1063,42 @@ export default function App() {
       <Overlays
         canvasRef={canvasRef}
         overlayEnabled={overlayEnabled}
+        vignetteEnabled={vignetteEnabled}
         glitchRef={glitchRef}
         glitchActive={glitchActive}
         glitchBg={glitchBg}
         statusVisible={statusVisible}
         statusText={statusText}
-        networkActive={networkActive}
-        networkFadeOut={networkFadeOut}
-        networkName={networkName}
-        isSubscribed={isSubscribed}
-        toggleSubscription={toggleSubscription}
         toastShow={toastShow}
         toastMsg={toastMsg}
-        togglePower={togglePower}
+        toggleFullscreen={toggleFullscreen}
       />
 
       <HUD
-        hudFadeOut={hudFadeOut}
+        hudFadeOut={hudFadeOut && !leftMenuOpen && !settingsVisible}
         volume={volume}
         channelLabel={channelLabel}
-        openSearchFn={openSearchFn}
         handleVolumeChange={handleVolumeChange}
         switchTo={switchTo}
         toggleFullscreen={toggleFullscreen}
         query={currentQuery}
         activeIndex={activeIndexState}
+        toggleLeftMenu={toggleLeftMenu}
+        leftMenuOpen={leftMenuOpen}
+        settingsOpen={settingsVisible}
+        networkName={networkName}
+        isSubscribed={isSubscribed}
+        toggleSubscription={toggleSubscription}
+      />
+
+      <LeftMenu
+        isOpen={leftMenuOpen}
+        onClose={closeLeftMenu}
+        subscriptions={subscriptions}
+        handleSearch={handleSearch}
+        deleteSubscription={deleteSubscription}
+        openSettingsFn={openSettingsFn}
+        activeQuery={currentQuery}
       />
 
       <SearchModal
@@ -1052,10 +1124,10 @@ export default function App() {
         closeSettingsFn={closeSettingsFn}
         overlayEnabled={overlayEnabled}
         setOverlayEnabled={setOverlayEnabled}
-        fxEnabled={fxEnabled}
-        setFxEnabled={setFxEnabled}
-        edgeVideo={edgeVideo}
-        setEdgeVideo={setEdgeVideo}
+        vignetteEnabled={vignetteEnabled}
+        setVignetteEnabled={setVignetteEnabled}
+        aspectRatio={aspectRatio}
+        setAspectRatio={setAspectRatio}
         themeIndex={themeIndex}
         setTheme={setTheme}
         themes={THEMES}
