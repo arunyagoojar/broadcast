@@ -39,7 +39,7 @@ The goal of Broadcast is to bring back the magic of *discovery* through channel 
 * **Frontend:** React + Vite
 * **Styling:** Vanilla CSS (custom CRT filter system, animations, and responsive flex grid)
 * **Video Engine:** YouTube IFrame Player API
-* **Search Backend:** Invidious API (for private, lightweight search indexing without direct YouTube API keys)
+* **Search:** A browser-side pool of public Invidious APIs (no YouTube API key or application backend)
 
 ---
 
@@ -62,6 +62,11 @@ Make sure you have Node.js installed on your machine.
    npm run dev
    ```
 4. Open the link displayed in the terminal (usually `http://localhost:5173`) in your web browser.
+
+Search races multiple CORS-enabled public instances, remembers the fastest successful
+host, and falls back to a secondary pool. Because these are volunteer-operated services,
+availability can still change without notice. The current pool lives in
+`src/api/searchBackend.js` and should be periodically health-checked.
 
 ---
 
