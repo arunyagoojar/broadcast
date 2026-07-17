@@ -20,7 +20,6 @@ function localSearchProxy() {
           }
 
           const formatted = await fetchInvidiousResults(query, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
             logger: { warn() {} },
           });
 
@@ -48,3 +47,4 @@ function localSearchProxy() {
 export default defineConfig({
   plugins: [react(), localSearchProxy()],
 })
+// Trigger restart

@@ -12,13 +12,20 @@ export async function searchYouTube(query, options = {}) {
   try {
     const r = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
     if (r.ok) {
-      const data = await r.json();
-      const results = filterFocusedResults(
-        query,
-        normalizeInvidiousResults(data),
-        focused
-      );
-      if (results.length > 0) return results;
+      const contentType = r.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await r.json();
+        const results = filterFocusedResults(
+          query,
+          normalizeInvidiousResults(data),
+          focused
+        );
+        if (results.length > 0) return results;
+      } else {
+        throw new Error("Proxy returned non-JSON response");
+      }
+    } else {
+      throw new Error(`Proxy returned status ${r.status}`);
     }
   } catch (e) {
     console.error('[TV] Proxy search failed:', e);

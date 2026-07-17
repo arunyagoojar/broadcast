@@ -15,11 +15,7 @@ export async function onRequest(context) {
     });
   }
 
-  const results = await fetchInvidiousResults(query, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    },
-  });
+  const results = await fetchInvidiousResults(query, {});
 
   if (results.length > 0) {
     return new Response(JSON.stringify(results), {
