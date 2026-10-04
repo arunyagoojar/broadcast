@@ -1,4 +1,7 @@
-import { normalizeInvidiousResults } from './searchShared.js';
+import {
+  createResultCache,
+  normalizeInvidiousResults,
+} from './searchShared.js';
 
 // These instances are intentionally kept client-side so the deployed app remains
 // completely static. They must return Access-Control-Allow-Origin for browser use.
@@ -19,7 +22,7 @@ const FAILED_INSTANCE_TTL_MS = 2 * 60 * 1000;
 const MAX_CACHED_QUERIES = 30;
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
-const resultCache = new Map();
+const resultCache = createResultCache(RESULT_CACHE_TTL_MS, MAX_CACHED_QUERIES);
 const failedUntil = new Map();
 let lastSuccessfulInstance = null;
 
@@ -40,24 +43,6 @@ function orderedInstances(instances) {
     lastSuccessfulInstance,
     ...available.filter((base) => base !== lastSuccessfulInstance),
   ];
-}
-
-function getCached(query) {
-  const cached = resultCache.get(query);
-  if (!cached) return null;
-  if (Date.now() - cached.createdAt > RESULT_CACHE_TTL_MS) {
-    resultCache.delete(query);
-    return null;
-  }
-  return cached.results;
-}
-
-function setCached(query, results) {
-  resultCache.delete(query);
-  resultCache.set(query, { createdAt: Date.now(), results });
-  if (resultCache.size > MAX_CACHED_QUERIES) {
-    resultCache.delete(resultCache.keys().next().value);
-  }
 }
 
 async function fetchInstance(base, query, signal) {
@@ -113,7 +98,7 @@ export async function fetchInvidiousResults(query, options = {}) {
   const cleanQuery = String(query || '').trim().replace(/\s+/g, ' ');
   if (!cleanQuery) return [];
 
-  const cached = getCached(cleanQuery);
+  const cached = resultCache.get(cleanQuery);
   if (cached) return cached;
 
   const timeoutMs = options.timeoutMs ?? 8000;
@@ -129,7 +114,7 @@ export async function fetchInvidiousResults(query, options = {}) {
     return [];
   }
 
-  setCached(cleanQuery, results);
+  resultCache.set(cleanQuery, results);
   return results;
 }
 

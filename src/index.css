@@ -570,6 +570,60 @@ body.ar-full #player-wrap {
   color: rgba(0, 0, 0, 0.55);
 }
 
+.settings-proxy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 18px 6px;
+}
+
+.settings-proxy-status {
+  font-family: sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.settings-proxy-status.on {
+  color: rgba(126, 231, 135, 0.85);
+}
+
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f3f3f3;
+  padding: 0 12px;
+  font-family: sans-serif;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.settings-input:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.settings-proxy-help {
+  margin: 0;
+  font-family: sans-serif;
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.settings-proxy-help code {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
 /* ── DISTRIBUTED HUD ── */
 .hud {
   position: absolute;

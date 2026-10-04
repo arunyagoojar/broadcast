@@ -1,3 +1,26 @@
+export function createResultCache(ttlMs, maxEntries) {
+  const cache = new Map();
+
+  return {
+    get(query) {
+      const cached = cache.get(query);
+      if (!cached) return null;
+      if (Date.now() - cached.createdAt > ttlMs) {
+        cache.delete(query);
+        return null;
+      }
+      return cached.results;
+    },
+    set(query, results) {
+      cache.delete(query);
+      cache.set(query, { createdAt: Date.now(), results });
+      if (cache.size > maxEntries) {
+        cache.delete(cache.keys().next().value);
+      }
+    },
+  };
+}
+
 export const INVIDIOUS_INSTANCES = [
   'https://iv.melmac.space',
   'https://inv.thepixora.com',

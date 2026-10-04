@@ -1,0 +1,8 @@
+name = "broadcast-search"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+# Optional: protect your proxy from strangers. Set a secret token...
+#   npx wrangler secret put PROXY_TOKEN
+# ...then paste the same token into Broadcast's settings panel (Settings
+# -> Search proxy). Leave unset for an open proxy.
