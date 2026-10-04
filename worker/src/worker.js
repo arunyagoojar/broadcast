@@ -15,6 +15,16 @@ const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 50;
 
+// Keep the free tier for the app itself: answer the production site,
+// localhost development, and server-side calls without an Origin header.
+const ALLOWED_ORIGINS = new Set(['https://brodcast.eu.cc']);
+const LOCAL_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.has(origin) || LOCAL_ORIGIN_PATTERN.test(origin);
+}
+
 const responseCache = new Map();
 
 function parseDuration(text) {
@@ -115,6 +125,10 @@ export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders() });
+    }
+
+    if (!isAllowedOrigin(request.headers.get('origin'))) {
+      return json({ error: 'forbidden' }, 403);
     }
 
     const url = new URL(request.url);

@@ -16,6 +16,20 @@ function stubFetch(handler) {
   };
 }
 
+test('a built-in proxy URL ships with the app so users configure nothing', async () => {
+  const { getProxyUrl } = await import('../src/api/proxySearch.js');
+  const url = getProxyUrl();
+
+  assert.match(
+    url,
+    /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/,
+    'default proxy must be the deployed workers.dev URL'
+  );
+
+  const live = await fetch(`${url}/search?q=${encodeURIComponent('test')}`);
+  assert.equal(live.status, 200);
+});
+
 test('searchYouTube prefers the configured proxy and skips Invidious', async () => {
   const mock = stubFetch(async (url) => {
     if (url.startsWith('https://proxy.example/')) {

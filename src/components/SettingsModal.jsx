@@ -1,12 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { playClick } from '../utils/sounds';
-import { writeJson } from '../utils/storage';
-import {
-  PROXY_TOKEN_KEY,
-  PROXY_URL_KEY,
-  getProxyToken,
-  getProxyUrl,
-} from '../api/proxySearch';
 
 const ASPECT_RATIOS = [
   { value: '16-9', label: '16 : 9', sub: 'Widescreen (default)' },
@@ -30,14 +23,6 @@ export default function SettingsModal({
 }) {
   const panelRef = useRef(null);
   const themeLabels = ['COLOR', 'GREEN', 'AMBER', 'B&W'];
-  const [proxyUrl, setProxyUrl] = useState(() => getProxyUrl());
-  const [proxyToken, setProxyToken] = useState(() => getProxyToken());
-
-  function saveProxy(kind, value) {
-    if (kind === 'url') setProxyUrl(value);
-    else setProxyToken(value);
-    writeJson(kind === 'url' ? PROXY_URL_KEY : PROXY_TOKEN_KEY, value.trim());
-  }
 
   useEffect(() => {
     if (!settingsOpen) return undefined;
@@ -150,41 +135,6 @@ export default function SettingsModal({
                   {themeLabels[i]}
                 </button>
               ))}
-            </div>
-
-            {/* Search proxy */}
-            <div className="left-menu-group-label">SEARCH PROXY</div>
-            <div className="settings-proxy">
-              <span
-                className={`settings-proxy-status${
-                  proxyUrl ? ' on' : ''
-                }`}
-              >
-                {proxyUrl ? 'CUSTOM PROXY ACTIVE' : 'PUBLIC FALLBACK'}
-              </span>
-              <input
-                className="settings-input"
-                type="url"
-                spellCheck="false"
-                placeholder="https://broadcast-search.your-name.workers.dev"
-                value={proxyUrl}
-                onChange={(e) => saveProxy('url', e.target.value)}
-                aria-label="Search proxy URL"
-              />
-              <input
-                className="settings-input"
-                type="text"
-                spellCheck="false"
-                placeholder="Proxy token (optional)"
-                value={proxyToken}
-                onChange={(e) => saveProxy('token', e.target.value)}
-                aria-label="Search proxy token"
-              />
-              <p className="settings-proxy-help">
-                Deploy the free worker in <code>worker/</code> for search that
-                never dies — see README, takes 2 minutes. Empty = public
-                Invidious pool (unreliable).
-              </p>
             </div>
           </div>
         </div>

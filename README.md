@@ -39,7 +39,7 @@ The goal of Broadcast is to bring back the magic of *discovery* through channel 
 * **Frontend:** React + Vite
 * **Styling:** Vanilla CSS (custom CRT filter system, animations, and responsive flex grid)
 * **Video Engine:** YouTube IFrame Player API
-* **Search:** Your own keyless Cloudflare Worker proxy (`worker/`) that talks directly to YouTube's web search, with a public Invidious pool as fallback
+* **Search:** A built-in keyless Cloudflare Worker proxy (deployed, zero config) that talks directly to YouTube's web search, with a public Invidious pool as fallback
 
 ---
 
@@ -59,38 +59,34 @@ endpoint has worked without a key for years, and every surviving open-source pro
 [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor),
 [YouTube.js](https://github.com/LuanRT/YouTube.js)) uses exactly that.
 
-The fix is to use the same approach but from infrastructure **you own**, so nobody
-else can take it away:
+So Broadcast now ships with its own search proxy, already deployed and built into
+the app — **users configure nothing**:
 
-1. A ~150-line, dependency-free Cloudflare Worker (`worker/src/worker.js`) forwards
-   search queries to YouTube's own web search endpoint and returns normalized JSON.
-   No API key, no quota, no third-party instances.
-2. The app calls your proxy first and still falls back to the public Invidious pool
-   if the proxy is down.
+1. `worker/src/worker.js` is a ~150-line, dependency-free Cloudflare Worker that
+   forwards search queries to YouTube's own web search endpoint and returns
+   normalized JSON. No API key, no quota, no third-party instances.
+2. Its URL is baked into `src/api/proxySearch.js` as the default, so the deployed
+   app works out of the box.
+3. If the proxy is ever unreachable, the app still falls back to the public
+   Invidious pool.
+4. The worker only answers the app's own origin and localhost development
+   (`ALLOWED_ORIGINS` in the worker), so strangers can't burn its free tier.
 
-### Deploy your proxy (2 minutes, free forever)
+### For maintainers
 
-1. Create a free account at [cloudflare.com](https://www.cloudflare.com) if you don't
-   have one (the Workers free tier is 100,000 requests/day — far more than channel
-   surfing needs).
-2. From the repo root:
-   ```bash
-   cd worker
-   npx wrangler login
-   npx wrangler deploy
-   ```
-3. Wrangler prints your URL, e.g. `https://broadcast-search.<your-name>.workers.dev`.
-4. Open Broadcast's **SETTINGS → SEARCH PROXY**, paste that URL, done. The status
-   flips to `CUSTOM PROXY ACTIVE`.
+The proxy runs on the free Cloudflare Workers tier (100,000 requests/day). If
+YouTube ever changes its search response format, the worker walks the whole
+payload for video entries (so it tolerates reshuffled JSON) and can be fixed in
+one place:
 
-Optional: keep strangers from using your proxy by setting a token
-(`npx wrangler secret put PROXY_TOKEN`, pick any string) and pasting the same token
-into the settings panel.
+```bash
+cd worker
+npx wrangler deploy
+```
 
-That's it — search now depends on your own Cloudflare account instead of a rotating
-list of dying public servers. If YouTube ever changes its search response format,
-the worker walks the whole payload for video entries (so it tolerates reshuffled
-JSON), and it can be updated in one place, in one minute.
+Hosting the frontend somewhere new? Add its origin to `ALLOWED_ORIGINS` in
+`worker/src/worker.js` and redeploy. To point the app at a different proxy
+without touching the default, set `window.BROADCAST_PROXY_URL` before load.
 
 ### Running the proxy locally
 

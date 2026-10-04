@@ -1,33 +1,38 @@
 # Broadcast search proxy
 
 A dependency-free Cloudflare Worker that gives Broadcast reliable YouTube search
-with no API key. It forwards queries to YouTube's own public web search endpoint
-(InnerTube, the same one every browser YouTube tab uses) and returns normalized
-`{ videos: [{ id, title, dur }] }` JSON with permissive CORS headers.
+with no API key and **no user configuration**. It forwards queries to YouTube's
+own public web search endpoint (InnerTube, the same one every browser YouTube
+tab uses) and returns normalized `{ videos: [{ id, title, dur }] }` JSON with
+permissive CORS headers.
 
-## Deploy
+The deployed URL (`https://broadcast-search.arunyagoojar.workers.dev`) is baked
+into `src/api/proxySearch.js` as the app's default search backend, so the
+deployed app works out of the box.
+
+## Access control
+
+The worker only answers:
+
+- `https://brodcast.eu.cc` (production)
+- `http://localhost:*` / `http://127.0.0.1:*` (development)
+- requests without an `Origin` header (tests, curl)
+
+Everything else gets `403` — add a new origin to `ALLOWED_ORIGINS` in
+`src/worker.js` if the app is hosted somewhere else.
+
+## Redeploy
 
 ```bash
-npx wrangler login
+cd worker
 npx wrangler deploy
 ```
 
-Paste the printed `*.workers.dev` URL into Broadcast's **SETTINGS → SEARCH PROXY**.
-
 Free tier: 100,000 requests/day — plenty for channel surfing.
-
-## Optional: require a token
-
-```bash
-npx wrangler secret put PROXY_TOKEN   # enter any secret string
-```
-
-Then paste the same token into the app's settings panel. Without a token the
-proxy is open to anyone who knows the URL.
 
 ## Endpoints
 
-- `GET /search?q=<query>` — search videos. Optional `&token=` when `PROXY_TOKEN` is set.
+- `GET /search?q=<query>` — search videos.
 - `OPTIONS *` — CORS preflight.
 
 Results are cached in-memory for 5 minutes per isolate.

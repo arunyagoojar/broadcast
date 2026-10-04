@@ -2,7 +2,10 @@ name = "broadcast-search"
 main = "src/worker.js"
 compatibility_date = "2026-09-01"
 
-# Optional: protect your proxy from strangers. Set a secret token...
-#   npx wrangler secret put PROXY_TOKEN
-# ...then paste the same token into Broadcast's settings panel (Settings
-# -> Search proxy). Leave unset for an open proxy.
+# Zero-config search backend for Broadcast. The client ships with this
+# worker's URL as its built-in default, so users never configure anything.
+# Abuse protection: the worker only answers the app's own origin(s) and
+# localhost dev (see ALLOWED_ORIGINS in src/worker.js).
+#
+# Redeploy after changes:
+#   cd worker && npx wrangler deploy
